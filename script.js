@@ -1,88 +1,90 @@
-document.documentElement.classList.add("js");
+// LiveCodes Technology landing page (storytelling version)
 
-const menuButton = document.querySelector(".menu-toggle");
-const navigation = document.querySelector("#primary-nav");
+// ---------- Analytics hook (PRD F6) ----------
+// Sends contact clicks to Google Analytics / Tag Manager if either is added to the page.
+function track(event, detail = {}) {
+  if (typeof window.gtag === "function") window.gtag("event", event, detail);
+  if (Array.isArray(window.dataLayer)) window.dataLayer.push({ event, ...detail });
+}
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-track]");
+  if (el) track("contact_click", { method: el.dataset.track });
+});
 
-if (menuButton && navigation) {
-  menuButton.addEventListener("click", () => {
-    const isExpanded = menuButton.getAttribute("aria-expanded") === "true";
-    menuButton.setAttribute("aria-expanded", String(!isExpanded));
-    menuButton.setAttribute("aria-label", isExpanded ? "Open navigation" : "Close navigation");
-    navigation.classList.toggle("is-open", !isExpanded);
-  });
+// ---------- Mobile menu ----------
+const menuBtn = document.querySelector(".menu-toggle");
+const nav = document.getElementById("site-nav");
+function setMenu(open) {
+  menuBtn.setAttribute("aria-expanded", String(open));
+  menuBtn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  nav.classList.toggle("is-open", open);
+}
+menuBtn.addEventListener("click", () => setMenu(menuBtn.getAttribute("aria-expanded") !== "true"));
+nav.addEventListener("click", (e) => { if (e.target.closest("a")) setMenu(false); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && nav.classList.contains("is-open")) { setMenu(false); menuBtn.focus(); }
+});
 
-  navigation.addEventListener("click", (event) => {
-    if (event.target.closest("a")) {
-      menuButton.setAttribute("aria-expanded", "false");
-      menuButton.setAttribute("aria-label", "Open navigation");
-      navigation.classList.remove("is-open");
-    }
-  });
+// ---------- Header: tucks away while scrolling down, returns when scrolling up ----------
+const header = document.querySelector(".site-header");
+let lastY = window.scrollY;
+window.addEventListener("scroll", () => {
+  const y = window.scrollY;
+  const menuOpen = menuBtn.getAttribute("aria-expanded") === "true";
+  header.classList.toggle("is-hidden", !menuOpen && y > 240 && y > lastY);
+  lastY = y;
+}, { passive: true });
+// Keyboard users always get the header back when focus moves into it.
+header.addEventListener("focusin", () => header.classList.remove("is-hidden"));
 
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && navigation.classList.contains("is-open")) {
-      menuButton.setAttribute("aria-expanded", "false");
-      menuButton.setAttribute("aria-label", "Open navigation");
-      navigation.classList.remove("is-open");
-      menuButton.focus();
-    }
-  });
+// ---------- Ordering tablet demo ----------
+const peso = (n) => "₱" + n.toLocaleString("en-PH"); // ₱
+const order = new Map();
+let orderNo = 15;
+const lines = document.querySelector(".pos-lines");
+const totalEl = document.querySelector(".pos-total-value");
+const sendBtn = document.querySelector(".pos-send");
+const ticket = document.querySelector(".pos-ticket");
+let ticketTimer;
+
+function renderOrder() {
+  lines.innerHTML = "";
+  let total = 0;
+  for (const [name, { price, qty }] of order) {
+    total += price * qty;
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = `${qty}× ${name}`; // "2× Tapsilog"
+    const amount = document.createElement("span");
+    amount.textContent = peso(price * qty);
+    li.append(label, amount);
+    lines.append(li);
+  }
+  totalEl.textContent = peso(total);
+  sendBtn.disabled = order.size === 0;
 }
 
-const revealItems = document.querySelectorAll(".reveal");
-if ("IntersectionObserver" in window) {
-  const revealObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.12, rootMargin: "0px 0px -36px 0px" });
-  revealItems.forEach((item) => revealObserver.observe(item));
-} else {
-  revealItems.forEach((item) => item.classList.add("is-visible"));
-}
-
-const form = document.querySelector("#contact-form");
-if (form) {
-  const emailField = form.querySelector("#email");
-  const phoneField = form.querySelector("#phone");
-  const status = form.querySelector("#form-status");
-  const honeypot = form.querySelector("#website");
-
-  const validateContact = () => {
-    const hasContact = Boolean(emailField.value.trim() || phoneField.value.trim());
-    emailField.setCustomValidity(hasContact ? "" : "Please add an email address or phone number so we can reply.");
-  };
-  emailField.addEventListener("input", validateContact);
-  phoneField.addEventListener("input", validateContact);
-  validateContact();
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    status.textContent = "";
-    validateContact();
-
-    if (honeypot.value.trim()) {
-      status.textContent = "Thanks — your message could not be prepared. Please contact us directly by email.";
-      return;
-    }
-    if (!form.reportValidity()) return;
-
-    const name = form.querySelector("#name").value.trim();
-    const email = emailField.value.trim();
-    const phone = phoneField.value.trim();
-    const message = form.querySelector("#message").value.trim();
-    const contactLine = [email && `Email: ${email}`, phone && `Phone: ${phone}`].filter(Boolean).join(" | ");
-    const body = `Hi LiveCodes Technology,\n\n${message}\n\nFrom: ${name}\n${contactLine}`;
-    const subject = `Website inquiry from ${name}`;
-    const mailto = `mailto:francis.natividad@livecodes.ph?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-    status.textContent = "Opening your email app with the message ready to send…";
-    window.location.href = mailto;
+document.querySelectorAll(".pos-item").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const { name, price } = btn.dataset;
+    const line = order.get(name) || { price: Number(price), qty: 0 };
+    line.qty += 1;
+    order.set(name, line);
+    ticket.classList.remove("is-shown");
+    renderOrder();
   });
-}
+});
 
-const year = document.querySelector("#year");
-if (year) year.textContent = String(new Date().getFullYear());
+sendBtn.addEventListener("click", () => {
+  const count = [...order.values()].reduce((n, l) => n + l.qty, 0);
+  orderNo += 1;
+  ticket.textContent = `Order #${String(orderNo).padStart(3, "0")} sent to the kitchen: ${count} item${count === 1 ? "" : "s"} for table 4.`;
+  ticket.classList.add("is-shown");
+  order.clear();
+  renderOrder();
+  clearTimeout(ticketTimer);
+  ticketTimer = setTimeout(() => ticket.classList.remove("is-shown"), 4500);
+});
+
+// ---------- Footer year ----------
+document.querySelector(".year").textContent = new Date().getFullYear();

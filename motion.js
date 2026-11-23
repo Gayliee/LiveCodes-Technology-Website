@@ -117,9 +117,12 @@
     playScreen(screens[i]);
   }
 
+  // On phones the text panel sits at the bottom of each chapter, so switch a little later.
+  const switchAt = () => (wide.matches ? "55%" : "40%");
   chapters.forEach((ch, i) => {
     ScrollTrigger.create({
-      trigger: ch, start: "top 55%", end: "bottom 55%",
+      trigger: ch, start: () => "top " + switchAt(), end: () => "bottom " + switchAt(),
+      invalidateOnRefresh: true,
       onToggle: (self) => self.isActive && activate(i),
     });
   });
@@ -140,14 +143,40 @@
     scrollTrigger: { trigger: story, start: "top top", end: "bottom bottom", scrub: 1 },
   });
 
-  setPinned(wide.matches);
-  wide.addEventListener("change", (e) => setPinned(e.matches));
+  // The pinned scene runs at every size; CSS gives phones a stacked layout
+  // (tablet on top, text panel below) instead of side by side.
+  setPinned(true);
 
-  // Chapter text rises in as each chapter scrolls into place.
+  // Phones: shrink the whole tablet so it always fits in the top half of the screen,
+  // however short the screen is (its contents wrap and grow taller when narrow).
+  const device = story.querySelector(".stage-device");
+  function fitDevice() {
+    device.style.zoom = "";
+    if (wide.matches) return;
+    const room = stage.clientHeight * 0.5 - 84;
+    const z = gsap.utils.clamp(0.5, 1, room / device.offsetHeight);
+    device.style.zoom = z.toFixed(3);
+  }
+  fitDevice();
+  ScrollTrigger.addEventListener("refreshInit", fitDevice);
+  wide.addEventListener("change", () => ScrollTrigger.refresh());
+
+  // Chapter text rises in as it scrolls into view.
   chapters.forEach((ch) => {
     gsap.from(ch.querySelectorAll(".chapter-text > *"), {
       ...fadeUp, stagger: 0.08,
-      scrollTrigger: { trigger: ch, start: "top 70%", once: true },
+      scrollTrigger: { trigger: ch.querySelector(".chapter-text"), start: "top 88%", once: true },
+    });
+  });
+
+  // Phones: each text panel fades out once it starts rising past its resting spot
+  // (chapter bottom leaving the screen bottom), whatever the panel's height.
+  gsap.matchMedia().add("(max-width: 900px)", () => {
+    chapters.forEach((ch) => {
+      gsap.to(ch.querySelector(".chapter-text"), {
+        autoAlpha: 0, ease: "none",
+        scrollTrigger: { trigger: ch, start: "bottom bottom", end: "bottom 50%", scrub: true },
+      });
     });
   });
 
@@ -170,7 +199,7 @@
       .to(".hero-demo .device", { y: -60, scale: 1.06, ease: "none" }, 0);
 
     // Section headings: words rise out of a mask.
-    document.querySelectorAll(".services-intro h2, .why h2, .steps h3").forEach((h) => {
+    document.querySelectorAll(".services-intro h2, .why h2, .steps h3, .clients h2").forEach((h) => {
       gsap.from(splitWords(h), {
         yPercent: 110, duration: 1, stagger: 0.05, ease: expo,
         scrollTrigger: { trigger: h, start: "top 85%", once: true },
@@ -193,12 +222,8 @@
       scrollTrigger: { trigger: ".contact", start: "top bottom", end: "top 20%", scrub: 1 },
     });
     gsap.from(".contact .lead, .contact-links li", {
-      ...fadeUp, stagger: 0.08,
+      ...fadeUp, stagger: 0.1,
       scrollTrigger: { trigger: ".contact-inner", start: "top 85%", once: true },
-    });
-    gsap.from(".contact-form", {
-      y: 80, autoAlpha: 0, duration: 1.2, ease: expo,
-      scrollTrigger: { trigger: ".contact-form", start: "top 90%", once: true },
     });
     gsap.from(".footer-inner > *", {
       ...fadeUp, y: 16, stagger: 0.08,
